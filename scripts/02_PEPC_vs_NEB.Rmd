@@ -1,0 +1,90 @@
+---
+title: "Analysis of in-house generated GpC methylation enzyme (PEPC) vs commercial
+  (NEB)"
+author: "Kasit Chatsirisupachai"
+date: '2024-05-30'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Introduction
+
+This notebook shows standard quality control steps to test GpC methyltransferase enzyme activity of PEPC enzyme, comparing with the reference (NEB enzyme).
+
+## Data
+_Drosophila_ S2 cells were treated with different concentration of the in-house generated GpC methyltransferase enzyme (24 units, 32 units, and 40 units) and NEB enzyme as a reference. All conditions were generated in duplicates. SMF library were sequenced using NextSeq...P... platform.
+
+Once obtain the raw sequencing data, Fastq files were aligned to the _Drosophila_ dm6 genome using `QuasR` package. Duplicate reads were removed using `Picard` and `Samtools`. Then, BAM files from replicates of the same treatment condition were merged.
+
+In this example, we subset the BAM files to contain only reads from `chr4` only.
+
+
+# PEPC vs NEB Enzyme Efficiency
+
+
+## Load libraries
+```{r}
+library(QuasR)
+library(SingleMoleculeFootprinting)
+library(BSgenome.Dmelanogaster.UCSC.dm6)
+library(tidyverse)
+library(ggplot2)
+library(here)
+```
+
+## Create QuasR input file
+We will first create QuasR input file, which will be used by QuasR package to locate the BAM files and sample name.
+QuasR input file contains two columns: 1) BAM file names, and 2) sample names.
+All BAM files for this example are in the folder `/data/dataset_2_S2_PEPCvsNEB`
+```{r}
+Qinput_df <- data.frame(FileName = c(paste0(here::here(), "/data/dataset_2_S2_PEPCvsNEB/Batch7_24_NO_deDup_merged_chr4.bam"),
+                                     paste0(here::here(), "/data/dataset_2_S2_PEPCvsNEB/Batch7_32_NO_deDup_merged_chr4.bam"),
+                                     paste0(here::here(), "/data/dataset_2_S2_PEPCvsNEB/Batch7_40_NO_deDup_merged_chr4.bam"),
+                                     paste0(here::here(), "/data/dataset_2_S2_PEPCvsNEB/NEB_NO_deDup_merged_chr4.bam")),
+                        SampleName = c("Batch7_24_NO_chr4",
+                                       "Batch7_32_NO_chr4",
+                                       "Batch7_40_NO_chr4",
+                                       "NEB_NO_chr4"))
+
+print(Qinput_df)
+
+write.table(Qinput_df, paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt"),
+                              col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
+
+Qinput <- paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt")
+```
+
+## 1. Cytosine conversion rate
+Here, we will quantify the cytosine conversion rate of each sample, by asking how much of the observed cytosine methylation falls into the expected context (GpC in this case).
+```{r}
+chr_ConversionRate <- ConversionRate(sampleSheet = Qinput,
+                                     genome = BSgenome.Dmelanogaster.UCSC.dm6,
+                                     chr = "chr4",
+                                     cores = 4)
+print(chr_ConversionRate)
+```
+Now we can plot the conversion rate using bar plot.
+```{r}
+# plotting
+chr_ConversionRate %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "sample") %>%
+  as.tibble() %>%
+  rename(ConversionRate = 2) -> plot_df
+
+plot_df %>% ggplot(aes(x = sample, y = ConversionRate, fill = sample)) +
+  geom_bar(stat="identity") +
+  xlab("Sample") +
+  ylab("Cytosine Conversion Rate") +
+  theme(axis.text.x = element_text(size = 14, angle = 45, hjust = 1, vjust = 1),
+        axis.text.y = element_text(size = 14),
+        axis.title.x = element_text(size=15),
+        axis.title.y = element_text(size=15),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 12),
+        legend.position = "right",
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"))
+
+```

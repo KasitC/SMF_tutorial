@@ -1,0 +1,5 @@
+FileName	SampleName
+/g/krebs/chatsiri/SMF_tutorial/data/dataset_2_S2_PEPCvsNEB/Batch7_24_NO_deDup_merged_chr4.bam	Batch7_24_NO_chr4
+/g/krebs/chatsiri/SMF_tutorial/data/dataset_2_S2_PEPCvsNEB/Batch7_32_NO_deDup_merged_chr4.bam	Batch7_32_NO_chr4
+/g/krebs/chatsiri/SMF_tutorial/data/dataset_2_S2_PEPCvsNEB/Batch7_40_NO_deDup_merged_chr4.bam	Batch7_40_NO_chr4
+/g/krebs/chatsiri/SMF_tutorial/data/dataset_2_S2_PEPCvsNEB/NEB_NO_deDup_merged_chr4.bam	NEB_NO_chr4
