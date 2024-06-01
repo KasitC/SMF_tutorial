@@ -2,7 +2,7 @@
 title: "Analysis of in-house generated GpC methylation enzyme (PEPC) vs commercial
   (NEB)"
 author: "Kasit Chatsirisupachai"
-date: '2024-05-30'
+date: '2024-06-01'
 output:
   html_document: default
   pdf_document: default
@@ -30,6 +30,7 @@ library(SingleMoleculeFootprinting)
 library(BSgenome.Dmelanogaster.UCSC.dm6)
 library(tidyverse)
 library(ggplot2)
+library(GGally)
 library(here)
 ```
 
@@ -57,6 +58,9 @@ Qinput <- paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt"
 
 ## 1. Cytosine conversion rate
 Here, we will quantify the cytosine conversion rate of each sample, by asking how much of the observed cytosine methylation falls into the expected context (GpC in this case).
+
+Please note that this example only contain data from one chromosome. But in an actual full data set, we can simply write a loop over chromosomes to measure cytosine conversion rates.
+
 ```{r}
 chr_ConversionRate <- ConversionRate(sampleSheet = Qinput,
                                      genome = BSgenome.Dmelanogaster.UCSC.dm6,
@@ -88,3 +92,132 @@ plot_df %>% ggplot(aes(x = sample, y = ConversionRate, fill = sample)) +
         axis.line = element_line(colour = "black"))
 
 ```
+
+What actually happened under the hood of the function `ConversionRate`?
+
+```{r}
+# unpack the steps in the ConversionRate function
+```
+
+
+## 2. Correlation of cytosine methylation rate between samples
+Now, we can compare methylation rate across samples. We will identify the methylation status for the Cytosines in the genomic context relevant for the experiment (Single enzyme, double enzyme, etc.). The type of the experiment is inferred based on which user-provided substring is found in the SampleName field of the QuasR input file: 
+
+### Call context methylation
+```{r}
+Qinput <- paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt")
+MySample <- suppressMessages(readr::read_delim(Qinput, delim = "\t")[[2]])
+
+genome <- BSgenome.Dmelanogaster.UCSC.dm6
+
+# make cluster
+cluObj <- makeForkCluster(nnodes = 4)
+
+# region of interest (in this example we only have chromosome 4)
+# chromosome 4 is the fifth on the Dmelanogaster genome (chr2L, chr2R, chr3L, chr3R, chr4)
+gr <- GRanges(seqnames = seqnames(Dmelanogaster)[5],
+              ranges = IRanges(start = 1, end = seqlengths(Dmelanogaster)[5]),
+              strand = "*")
+
+print(gr)
+
+# Call context methylation
+Context_Methylation <- CallContextMethylation(sampleSheet = Qinput, 
+                                              sample = MySample, 
+                                              genome = genome, 
+                                              RegionOfInterest = gr, 
+                                              returnSM = "F",
+                                              coverage = 20, 
+                                              ConvRate.thr = 0.2,
+                                              clObj = cluObj)
+```
+
+The Context_Methylation object contain, for each sample, an average methylation level at each cytosine in GC and CG contexts.
+```{r}
+# GC context
+Context_Methylation$DGCHN %>% head() %>% print()
+
+# CG context
+Context_Methylation$NWCGW %>% head() %>% print()
+```
+
+### Pair plot to see correlation of GC methylation level across samples.
+
+#### helper functions for the plot
+```{r}
+jet.colors <- grDevices::colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan","#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
+ 
+panel.jet <- function(...) {
+  smoothScatter(..., nrpoints=0, add=TRUE, colramp=jet.colors) 
+  }
+
+panel.hist <- function(x, ...) {
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5) )
+  h <- hist(x, plot = FALSE)
+  breaks <- h$breaks; nB <- length(breaks)
+  y <- h$counts; y <- y/max(y)
+  rect(breaks[-nB], 0, breaks[-1], y, col="grey", ...)
+  }
+
+panel.cor <- function(x, y, digits=2, prefix="", cex.cor, ...) {
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- abs(cor(x, y, use="pairwise.complete.obs"))
+  txt <- format(c(r, 0.123456789), digits=digits)[1]
+  txt <- paste(prefix, txt, sep="")
+  if(missing(cex.cor)) cex.cor <- 2.5/strwidth(txt)
+  text(0.5, 0.5, txt)
+  }
+
+```
+
+
+#### Plot GC methylation
+```{r}
+Context_Methylation_DGCHN <- Context_Methylation$DGCHN
+MethRate_df <- Context_Methylation_DGCHN %>% 
+    as.data.frame() %>% 
+    select(matches("MethRate"))
+  
+# remove NAs
+MethRate_df <- MethRate_df[complete.cases(MethRate_df),]
+
+# clean column names
+colnames(MethRate_df) <- unlist(lapply(colnames(MethRate_df), gsub, pattern = "_NO_chr4_MethRate", replacement = ""))
+
+# plot
+p <- pairs(MethRate_df, 
+           upper.panel = panel.cor, 
+           diag.panel = panel.hist, 
+           lower.panel = panel.jet,
+           cex.labels = 1)
+```
+From the histogram, we can see that the average methylation level increases as we increase the PEPC enzyme concentration (24, 32, 40 units). Furthermore, we can see decent correlation levels across samples. The correlation between PEPC enzyme-treated samples and NEB enzyme-treated samples increases following the PEPC enzyme concentration.
+
+
+#### Plot CG methylation
+As a comparison, we will plot the average methylation correlation across samples in the CG context. This we do not expect a correlation, as we did not make a CG enzyme treatment. Indeed, the situation will be different if we perform dual-enzyme treatment.
+```{r}
+Context_Methylation_NWCGW <- Context_Methylation$NWCGW
+MethRate_df <- Context_Methylation_NWCGW %>% 
+    as.data.frame() %>% 
+    select(matches("MethRate"))
+  
+# remove NAs
+MethRate_df <- MethRate_df[complete.cases(MethRate_df),]
+
+# clean column names
+colnames(MethRate_df) <- unlist(lapply(colnames(MethRate_df), gsub, pattern = "_NO_chr4_MethRate", replacement = ""))
+
+# plot
+p <- pairs(MethRate_df, 
+           upper.panel = panel.cor, 
+           diag.panel = panel.hist, 
+           lower.panel = panel.jet,
+           cex.labels = 1)
+```
+
+
+
+
