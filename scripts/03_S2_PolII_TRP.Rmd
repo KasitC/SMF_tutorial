@@ -1,7 +1,7 @@
 ---
 title: "Single-molecule analysis of the change in RNA Pol II binding frequency upon triptolide treatment"
 author: "Kasit Chatsirisupachai"
-date: "2024-06-02"
+date: "2024-06-03"
 output:
   html_document: default
   pdf_document: default
@@ -62,6 +62,8 @@ print(TSSs)
 
 
 ## Call context methylation
+As an example, we will first work on only one promoter region for now.
+
 ```{r}
 Qinput <- paste0(here::here(), "/analysis/example_3/Qinput_S2_DMSOvsTRP_subset.txt")
 MySample <- suppressMessages(readr::read_delim(Qinput, delim = "\t")[[2]])
@@ -71,18 +73,18 @@ genome <- BSgenome.Dmelanogaster.UCSC.dm6
 # make cluster
 cluObj <- makeForkCluster(nnodes = 4)
 
-# define region of interest by extending the TSS to cover 1000 bp (500 upstream and 500 downstream)
-gr <- resize(TSSs, 1000, fix = "center")
+# define region of interest by extending the TSS to cover 500 bp (250 upstream and 250 downstream)
+# select only one TSS: NM_080188.3
+TSS <- TSSs[TSSs$gene_id == "NM_080188.3",]
+gr <- resize(TSS, 500, fix = "center")
 
 print(gr)
 
 # Call context methylation
-# As an example, we will first work on only one promoter region
-CurrentWindow <- gr[i]
 Methylation <- CallContextMethylation(sampleSheet = Qinput, 
                                         sample = MySample, 
                                         genome = genome, 
-                                        RegionOfInterest = CurrentWindow, 
+                                        RegionOfInterest = gr, 
                                         coverage = 20, 
                                         ConvRate.thr = 0.2, 
                                         returnSM = TRUE)
@@ -96,8 +98,28 @@ The first object in Methylation contains the bulk average methylation level at e
 ```{r}
 print(Methylation[[1]])
 ```
+Here, we can already plot the average SMF signal, to see if TRP treatment actually reduce paused Pol II footprint.
+```{r}
+PlotAvgSMF(MethGR = Methylation[[1]], 
+           RegionOfInterest = gr) +
+  geom_vline(xintercept = 12505788, linetype="dashed", color = "grey")
+```
 
-The second object in Methylation represents a sparse matrix containing single-molecule methylation status for each DNA molecule. Rows are DNA molecules, while columns are positions of each cytosine. `1` means unmethylated cytosine (i.e. "protected") and `2` means methylated cytosine (i.e. accessible).
+From the average plot, we can observe a reduction of Pol II footprint at the pausing site (~30-50 nucleotides downstream of the TSS). We next ask, can we go beyond the bulk analysis and assign a promoter state to each single-molecule of DNA?
+
+
+## Single-molecule sorting
+We will assign each DNA molecule to a promoter state (unassigned, nucleosome, unbound, PIC, PIC.polII, and polII).
+These promoter states can be dictated by a four-bin methylation pattern. 
+The bins and their relative location to the TSS are:
+1. upstream [-58:-43], 2. TATA-box [-36:-22], 3. paused Pol II [28:47], and 4. downstream [54:69]
+
+We will define an average cytosine methylation status in each bin. Thus, a vector of 4 can be derived.
+For example, if there is only a Pol II bound at the paused Pol II site, and the other bins are unoccupied, we will encode a patter `1101`. There are 16 patters in total ($2^4$.) 
+
+
+First, let's look at the second object in the Methylation object from above. This represents a sparse matrix containing single-molecule methylation status for each DNA molecule. Rows are DNA molecules, while columns are positions of each cytosine. `1` means unmethylated cytosine (i.e. "protected") and `2` means methylated cytosine (i.e. accessible).
+
 ```{r}
 # DMSO
 print(head(Methylation[[2]]$DMSO_DE_S2))
@@ -106,9 +128,56 @@ print(head(Methylation[[2]]$DMSO_DE_S2))
 print(head(Methylation[[2]]$TRP_DE_S2))
 ```
 
+Here, we have to define the bin positions to the promoter we are working with. We can use the function `MakeBins` to do the job. As some promoters are located on the minus strand, we have to take this into account. (Yet, our example promoter (NM_080188.3) is on the plus strand)
+```{r}
+BinsCoordinates <- MakeBins(RegionsOfInterest = TSS, BinType = "Promoter", StrandAware = TRUE)
+print(BinsCoordinates)
+
+strand <- unique(as.character(strand(BinsCoordinates)))
+print(strand)
+```
 
 
+Next, we can sort each read into one of the 16 patters. We will use the `SortedReads` function for this purpose.
+```{r}
+SortedReads <- lapply(Methylation[[2]], SortReads, BinsCoordinates = BinsCoordinates, 
+                      coverage = 20, strand = strand)
 
+# How many reads in each pattern?
+# DMSO
+lapply(SortedReads$DMSO_DE_S2, length) %>% unlist() %>% print()
+
+# TRP
+lapply(SortedReads$TRP_DE_S2, length) %>% unlist() %>% print()
+
+# create a dataframe of state frequencies
+StateFrequency_tbl <- StateQuantification(SortedReads = SortedReads, states = NULL)
+print(StateFrequency_tbl)
+```
+
+Now, it's time to assign promoter states to bin patterns.
+```{r}
+PromoterStates <- list(unassigned = c("0101", "0110", "1010"),
+                       nucleosome = c("0000", "0001", "0010", "0011", "0100", "1000", "1100"),
+                       unbound = c("0111", "1110", "1111"),
+                       PIC = c("1011"),
+                       PIC.polII = c("1001"),
+                       polII = c("1101"))
+```
+
+Finally, we will quantify promoter state frequencies.
+```{r}
+# All 16 possible states
+allPos <- expand.grid(c(0,1), c(0,1), c(0,1), c(0,1))
+states <- names(table(apply(allPos, 1, function(x){(paste(as.character((x)), collapse = ""))})))
+print(states)
+
+# Working on the DMSO sample
+DMSO_df <- StateFrequency_tbl %>% filter(Sample == "DMSO_DE_S2")
+DMSO_df
+
+
+```
 
 
 
