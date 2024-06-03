@@ -1,19 +1,23 @@
 ---
-title: "Analysis of in-house generated GpC methylation enzyme (PEPC) vs commercial
-  (NEB)"
+title: "Analysis of in-house generated GpC methylation (PEPC) vs commercial
+  (NEB) enzymes"
 author: "Kasit Chatsirisupachai"
-date: '2024-06-01'
+date: "2024-06-02"
 output:
   html_document: default
   pdf_document: default
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = TRUE)
+```
 
 # Introduction
 
 This notebook shows standard quality control steps to test GpC methyltransferase enzyme activity of PEPC enzyme, comparing with the reference (NEB enzyme).
 
 ## Data
-_Drosophila_ S2 cells were treated with different concentration of the in-house generated GpC methyltransferase enzyme (24 units, 32 units, and 40 units) and NEB enzyme as a reference. All conditions were generated in duplicates. SMF library were sequenced using NextSeq...P... platform.
+_Drosophila_ S2 cells were treated with different concentration of the in-house generated GpC methyltransferase enzyme (24 units, 32 units, and 40 units) and NEB enzyme as a reference. All conditions were generated in duplicates. SMF library were sequenced using Illumina NextSeq...P... platform. 
 
 Once obtain the raw sequencing data, Fastq files were aligned to the _Drosophila_ dm6 genome using `QuasR` package. Duplicate reads were removed using `Picard` and `Samtools`. Then, BAM files from replicates of the same treatment condition were merged.
 
@@ -21,7 +25,6 @@ In this example, we subset the BAM files to contain only reads from `chr4` only.
 
 
 # PEPC vs NEB Enzyme Efficiency
-
 
 ## Load libraries
 ```{r}
@@ -126,7 +129,7 @@ Context_Methylation <- CallContextMethylation(sampleSheet = Qinput,
                                               sample = MySample, 
                                               genome = genome, 
                                               RegionOfInterest = gr, 
-                                              returnSM = "F",
+                                              returnSM = FALSE,
                                               coverage = 20, 
                                               ConvRate.thr = 0.2,
                                               clObj = cluObj)
@@ -193,6 +196,7 @@ p <- pairs(MethRate_df,
            lower.panel = panel.jet,
            cex.labels = 1)
 ```
+
 From the histogram, we can see that the average methylation level increases as we increase the PEPC enzyme concentration (24, 32, 40 units). Furthermore, we can see decent correlation levels across samples. The correlation between PEPC enzyme-treated samples and NEB enzyme-treated samples increases following the PEPC enzyme concentration.
 
 

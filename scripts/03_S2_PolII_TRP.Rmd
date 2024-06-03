@@ -1,0 +1,146 @@
+---
+title: "Single-molecule analysis of the change in RNA Pol II binding frequency upon triptolide treatment"
+author: "Kasit Chatsirisupachai"
+date: "2024-06-02"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+In previous examples, we only analyse SMF data in the bulk level (i.e. average methylation). However, the actual advantage of SMF comes from the analysis at the 'single-molecule' level. With this type of analysis, we can assign a molecular state for each single DNA molecule in the sequencing data. Moreover, this will lead us to the 'frequency' of each molecular state across the population. 
+
+In this example, we will re-analyse a subset of data from the first SMF paper from the Krebs lab (Krebs _et al._, _Mol. Cell_, 2017). This paper investigated the turnover of RNA polymerase II (Pol II) in _Drosophila_ promoters. To study the binding of Pol II, each DNA molecule was assigned into one of the five promoter states (nucleosome, unbound, PIC, PIC.polII, and polII), based on the biology of known promoter motifs. [NOT FINISHED YET!!!] Introduce a bin strategy.
+
+## Data
+The data is the targeted amplicon dual-enzyme SMF of selected _Drosophila_ promoters on S2 cell line, with or without triptolide (TRP) treatment, an inhibitor of transcription initiation. SMF library were sequenced in paired-end using Illumina platform. Once obtain the raw sequencing data, Fastq files were aligned to the _Drosophila_ dm6 genome using `QuasR` package. Since this is an amplicon data, we do not remove duplicate reads.
+
+
+# Pol II analysis
+
+## Load libraries
+
+```{r}
+library(QuasR)
+library(SingleMoleculeFootprinting)
+library(BSgenome.Dmelanogaster.UCSC.dm6)
+library(tidyverse)
+library(ggplot2)
+library(here)
+```
+
+## Create QuasR input file
+Similar to the previous example, we will first create QuasR input file.
+All BAM files for this example are in the folder `/data/dataset_3_S2_amplicon_TRP`
+
+```{r}
+Qinput_df <- data.frame(FileName = c(paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/DMSO_DE_S2_subset_R1.bam"),
+                                     paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/DMSO_DE_S2_subset_R2.bam"),
+                                     paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/TRP_DE_S2_subset_R1.bam"),
+                                     paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/TRP_DE_S2_subset_R2.bam")),
+                        SampleName = c("DMSO_DE_S2",
+                                       "DMSO_DE_S2",
+                                       "TRP_DE_S2",
+                                       "TRP_DE_S2"))
+
+print(Qinput_df)
+
+write.table(Qinput_df, paste0(here::here(), "/analysis/example_3/Qinput_S2_DMSOvsTRP_subset.txt"),
+                              col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
+
+```
+
+## Load the GRanges object containing promoters of interest
+```{r}
+TSSs <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/TSS_GRanges.rds")
+print(TSSs)
+```
+
+
+## Call context methylation
+```{r}
+Qinput <- paste0(here::here(), "/analysis/example_3/Qinput_S2_DMSOvsTRP_subset.txt")
+MySample <- suppressMessages(readr::read_delim(Qinput, delim = "\t")[[2]])
+
+genome <- BSgenome.Dmelanogaster.UCSC.dm6
+
+# make cluster
+cluObj <- makeForkCluster(nnodes = 4)
+
+# define region of interest by extending the TSS to cover 1000 bp (500 upstream and 500 downstream)
+gr <- resize(TSSs, 1000, fix = "center")
+
+print(gr)
+
+# Call context methylation
+# As an example, we will first work on only one promoter region
+CurrentWindow <- gr[i]
+Methylation <- CallContextMethylation(sampleSheet = Qinput, 
+                                        sample = MySample, 
+                                        genome = genome, 
+                                        RegionOfInterest = CurrentWindow, 
+                                        coverage = 20, 
+                                        ConvRate.thr = 0.2, 
+                                        returnSM = TRUE)
+```
+
+
+Unlike in previous example (`02_PEPC_vs_NEB`), we now set the parameter returnSM to `TRUE`. This will make the function return methylation status for each DNA molecule, in addition to the bulk average methylation level. Let's take a look at the Methylation object.
+
+
+The first object in Methylation contains the bulk average methylation level at each cytosine, similar to what we saw previously in the `02_PEPC_vs_NEB` example.
+```{r}
+print(Methylation[[1]])
+```
+
+The second object in Methylation represents a sparse matrix containing single-molecule methylation status for each DNA molecule. Rows are DNA molecules, while columns are positions of each cytosine. `1` means unmethylated cytosine (i.e. "protected") and `2` means methylated cytosine (i.e. accessible).
+```{r}
+# DMSO
+print(head(Methylation[[2]]$DMSO_DE_S2))
+
+# TRP
+print(head(Methylation[[2]]$TRP_DE_S2))
+```
+
+
+
+
+
+
+
+
+```{r}
+# Since we have 36 regions of interest (TSSs), we need to run the CellContextMethylation function in parallel.
+parallel::mclapply(seq_along(gr), function(i) {
+  CurrentWindow = gr[i]
+  ExperimentType = suppressMessages(SingleMoleculeFootprinting::DetectExperimentType(Samples = MySample))
+  Methylation <- CallContextMethylation(sampleSheet = Qinput, 
+                                        sample = MySample, 
+                                        genome = genome, 
+                                        RegionOfInterest = CurrentWindow, 
+                                        coverage = 20, 
+                                        ConvRate.thr = 0.2, 
+                                        returnSM = TRUE)
+  if (length(Methylation[[1]]) == 0) {
+    return()
+    }
+  }, mc.cores = 4)
+
+Context_Methylation <- CallContextMethylation(sampleSheet = Qinput, 
+                                              sample = MySample, 
+                                              genome = genome, 
+                                              RegionOfInterest = gr, 
+                                              returnSM = TRUE,
+                                              coverage = 20, 
+                                              ConvRate.thr = 0.2,
+                                              clObj = cluObj)
+```
+
+
+
+
+
