@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = TRUE)
 This notebook shows standard quality control steps to test GpC methyltransferase enzyme activity of PEPC enzyme, comparing with the reference (NEB enzyme).
 
 ## Data
-_Drosophila_ S2 cells were treated with different concentration of the in-house generated GpC methyltransferase enzyme (24 units, 32 units, and 40 units) and NEB enzyme as a reference. All conditions were generated in duplicates. SMF library were sequenced using Illumina NextSeq...P... platform. 
+_Drosophila_ S2 cells were treated with different concentration of the in-house generated GpC methyltransferase enzyme (24 units, 32 units, and 40 units) and NEB enzyme as a reference. All conditions were generated in duplicates. SMF library were sequenced using Illumina NextSeq platform. 
 
 Once obtain the raw sequencing data, Fastq files were aligned to the _Drosophila_ dm6 genome using `QuasR` package. Duplicate reads were removed using `Picard` and `Samtools`. Then, BAM files from replicates of the same treatment condition were merged.
 
@@ -204,23 +204,7 @@ From the histogram, we can see that the average methylation level increases as w
 #### Plot CG methylation
 As a comparison, we will plot the average methylation correlation across samples in the CG context. This we do not expect a correlation, as we did not make a CG enzyme treatment. Indeed, the situation will be different if we perform dual-enzyme treatment.
 ```{r}
-Context_Methylation_NWCGW <- Context_Methylation$NWCGW
-MethRate_df <- Context_Methylation_NWCGW %>% 
-    as.data.frame() %>% 
-    select(matches("MethRate"))
-  
-# remove NAs
-MethRate_df <- MethRate_df[complete.cases(MethRate_df),]
 
-# clean column names
-colnames(MethRate_df) <- unlist(lapply(colnames(MethRate_df), gsub, pattern = "_NO_chr4_MethRate", replacement = ""))
-
-# plot
-p <- pairs(MethRate_df, 
-           upper.panel = panel.cor, 
-           diag.panel = panel.hist, 
-           lower.panel = panel.jet,
-           cex.labels = 1)
 ```
 
 
