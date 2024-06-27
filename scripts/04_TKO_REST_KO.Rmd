@@ -39,13 +39,15 @@ library(ggplot2)
 ```
 
 ## Load objects
-First, we will load the GRanges object containing the binding sites for REST.
+First, we will load the GRanges object containing the binding sites for REST. 
+!!! DON'T FORGET TO CHANGE THE PATH TO YOUR OWN PATH !!!
 ```{r}
 REST_TFBS <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_4_TF_cooccupancy/REST_TFBSs.rds")
 head(REST_TFBS)
 ```
 
 Next, we will load also the GRanges object containing the amplicon locations we will be working with.
+!!! DON'T FORGET TO CHANGE THE PATH TO YOUR OWN PATH !!!
 ```{r}
 amplicon_REST <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_4_TF_cooccupancy/Amplicon_REST_regions.rds")
 head(amplicon_REST)
