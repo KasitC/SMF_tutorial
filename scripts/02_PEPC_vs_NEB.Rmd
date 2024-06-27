@@ -2,7 +2,7 @@
 title: "Analysis of in-house generated GpC methylation (PEPC) vs commercial
   (NEB) enzymes"
 author: "Kasit Chatsirisupachai"
-date: "2024-06-02"
+date: "2024-06-21"
 output:
   html_document: default
   pdf_document: default
@@ -42,21 +42,8 @@ We will first create QuasR input file, which will be used by QuasR package to lo
 QuasR input file contains two columns: 1) BAM file names, and 2) sample names.
 All BAM files for this example are in the folder `/data/dataset_2_S2_PEPCvsNEB`
 ```{r}
-Qinput_df <- data.frame(FileName = c(paste0(here::here(), "/data/dataset_2_S2_PEPCvsNEB/Batch7_24_NO_deDup_merged_chr4.bam"),
-                                     paste0(here::here(), "/data/dataset_2_S2_PEPCvsNEB/Batch7_32_NO_deDup_merged_chr4.bam"),
-                                     paste0(here::here(), "/data/dataset_2_S2_PEPCvsNEB/Batch7_40_NO_deDup_merged_chr4.bam"),
-                                     paste0(here::here(), "/data/dataset_2_S2_PEPCvsNEB/NEB_NO_deDup_merged_chr4.bam")),
-                        SampleName = c("Batch7_24_NO_chr4",
-                                       "Batch7_32_NO_chr4",
-                                       "Batch7_40_NO_chr4",
-                                       "NEB_NO_chr4"))
 
-print(Qinput_df)
-
-write.table(Qinput_df, paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt"),
-                              col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
-
-Qinput <- paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt")
+Qinput <- "/g/krebs/chatsiri/SMF_tutorial/analysis/example_2/Qinput_PEPC_batch7_chr4.txt"
 ```
 
 ## 1. Cytosine conversion rate
@@ -100,7 +87,7 @@ What actually happened under the hood of the function `ConversionRate`?
 
 ```{r}
 # unpack the steps in the ConversionRate function
-
+ConversionRate
 ```
 
 
@@ -109,7 +96,7 @@ Now, we can compare methylation rate across samples. We will identify the methyl
 
 ### Call context methylation
 ```{r}
-Qinput <- paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt")
+#Qinput <- paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt")
 MySample <- suppressMessages(readr::read_delim(Qinput, delim = "\t")[[2]])
 
 genome <- BSgenome.Dmelanogaster.UCSC.dm6
@@ -204,7 +191,23 @@ From the histogram, we can see that the average methylation level increases as w
 #### Plot CG methylation
 As a comparison, we will plot the average methylation correlation across samples in the CG context. This we do not expect a correlation, as we did not make a CG enzyme treatment. Indeed, the situation will be different if we perform dual-enzyme treatment.
 ```{r}
+Context_Methylation_NWCGW <- Context_Methylation$NWCGW
+MethRate_df <- Context_Methylation_NWCGW %>% 
+    as.data.frame() %>% 
+    select(matches("MethRate"))
+  
+# remove NAs
+MethRate_df <- MethRate_df[complete.cases(MethRate_df),]
 
+# clean column names
+colnames(MethRate_df) <- unlist(lapply(colnames(MethRate_df), gsub, pattern = "_NO_chr4_MethRate", replacement = ""))
+
+# plot
+p <- pairs(MethRate_df, 
+           upper.panel = panel.cor, 
+           diag.panel = panel.hist, 
+           lower.panel = panel.jet,
+           cex.labels = 1)
 ```
 
 

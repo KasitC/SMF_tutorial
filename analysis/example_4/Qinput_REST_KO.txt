@@ -1,0 +1,3 @@
+FileName	SampleName
+/g/krebs/chatsiri/SMF_tutorial/data/dataset_4_TF_cooccupancy/SMF_MM_TKO_NO_REST_KO_downsampled_R1_1.bam	REST_NO_KO
+/g/krebs/chatsiri/SMF_tutorial/data/dataset_4_TF_cooccupancy/SMF_MM_TKO_NO_REST_KO_downsampled_R2_1.bam	REST_NO_KO

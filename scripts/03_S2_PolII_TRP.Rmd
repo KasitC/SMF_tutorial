@@ -1,10 +1,12 @@
 ---
 title: "Single-molecule analysis of the change in RNA Pol II binding frequency upon triptolide treatment"
 author: "Kasit Chatsirisupachai"
-date: "2024-06-10"
+date: "2024-06-21"
 output:
-  html_document: default
-  pdf_document: default
+  html_document: 
+    df_print: paged
+  pdf_document: 
+    latex_engine: xelatex
 ---
 
 ```{r setup, include=FALSE}
@@ -39,19 +41,7 @@ Similar to the previous example, we will first create QuasR input file.
 All BAM files for this example are in the folder `/data/dataset_3_S2_amplicon_TRP`
 
 ```{r}
-Qinput_df <- data.frame(FileName = c(paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/DMSO_DE_S2_subset_R1.bam"),
-                                     paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/DMSO_DE_S2_subset_R2.bam"),
-                                     paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/TRP_DE_S2_subset_R1.bam"),
-                                     paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/TRP_DE_S2_subset_R2.bam")),
-                        SampleName = c("DMSO_DE_S2",
-                                       "DMSO_DE_S2",
-                                       "TRP_DE_S2",
-                                       "TRP_DE_S2"))
-
-print(Qinput_df)
-
-write.table(Qinput_df, paste0(here::here(), "/analysis/example_3/Qinput_S2_DMSOvsTRP_subset.txt"),
-                              col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
+Qinput <- "/g/krebs/chatsiri/SMF_tutorial/analysis/example_3/Qinput_S2_DMSOvsTRP_subset.txt"
 
 ```
 
@@ -66,7 +56,6 @@ print(TSSs)
 As an example, we will first work on only one promoter region for now.
 
 ```{r}
-Qinput <- paste0(here::here(), "/analysis/example_3/Qinput_S2_DMSOvsTRP_subset.txt")
 MySample <- suppressMessages(readr::read_delim(Qinput, delim = "\t")[[2]])
 
 genome <- BSgenome.Dmelanogaster.UCSC.dm6
@@ -224,10 +213,10 @@ BinsCoordinates$TF <- BinsCoordinates$name
 
 # Plotting function (you can try to unpack this function!)
 SingleMoleculeFootprinting::PlotSingleSiteSMF(Methylation = Methylation,
-                                                     RegionOfInterest = resize(TSS, width = 400, fix = "center"),
-                                                     TFBSs = BinsCoordinates, 
-                                                     sorting.strategy = "promoter",
-                                                     SortedReads = SortedReads)
+                                              RegionOfInterest = resize(TSS, width = 400, fix = "center"),
+                                              TFBSs = BinsCoordinates, 
+                                              sorting.strategy = "promoter",
+                                              SortedReads = SortedReads)
 ```
 
 
@@ -259,7 +248,7 @@ SortedReads <- parallel::mclapply(seq_along(gr), function(i) {
   names(SortedReads_window) <- names(TSSs[i])
   
   return(SortedReads_window)
-  }, mc.cores = 4)
+  }, mc.cores = 8)
 
 SortedReads <- unlist(SortedReads, recursive = FALSE)
 
@@ -277,12 +266,78 @@ StateFrequency_tbl <- drop_na(StateFrequency_tbl)
 
 Again, the next step is to assign 4-bin states into promoter states. As previously we only work on one promoter, can we modify the codes to work on all promoters?
 ```{r}
+# All 16 possible states
+allPos <- expand.grid(c(0,1), c(0,1), c(0,1), c(0,1))
+states <- names(table(apply(allPos, 1, function(x){(paste(as.character((x)), collapse = ""))})))
+print(states)
 
+# our two samples
+samples <- unique(StateFrequency_tbl$Sample)
+
+###################################
+# select only promoters that are present in both samples
+prom_DMSO <- StateFrequency_tbl %>% filter(Sample == "DMSO_DE_S2") %>% select(TSS) %>% unique() %>% unlist()
+
+prom_TRP <- StateFrequency_tbl %>% filter(Sample == "TRP_DE_S2") %>% select(TSS) %>% unique() %>% unlist()
+
+shared_prom <- prom_TRP[prom_TRP %in% prom_DMSO]
+
+# filter to keep promoters that are in both samples
+StateFrequency_tbl <- StateFrequency_tbl %>% filter(TSS %in% shared_prom)
+###################################
+
+# working on each sample
+stateM_list <- lapply(samples, function(sample){
+  
+  print(paste0("Creating state matrix for: ", sample))
+    
+  # subset df to select only a sample we are working with
+  StateFrequency_sample <- StateFrequency_tbl %>% filter(Sample == sample)
+    
+  # create a matrix to store state frequencies
+  stateM <- matrix(nrow = length(unique(StateFrequency_tbl$TSS)), ncol = length(states))
+  rownames(stateM) <- unique(StateFrequency_tbl$TSS)
+  colnames(stateM) <- states
+  
+  # add frequencies to the state matrix
+  for(promoter in unique(StateFrequency_tbl$TSS)){
+    tmp <- StateFrequency_sample[StateFrequency_sample$TSS == promoter,]
+    for(state in unique(tmp$State)){
+    stateM[promoter, state] <- tmp[tmp$State == state, ]$Freqs
+    }
+  }
+  
+  stateM[is.na(stateM)] <- 0
+  
+  return(stateM)
+})
+
+# Collapse state matrix to promoter states
+collapse_states <- function(state_matrix, promoter_statesF){
+  return(t(apply(state_matrix, 1, function(x){tapply(x, promoter_statesF, sum)})))
+}
+
+grouped_freq_mats <- lapply(stateM_list, collapse_states, promoter_statesF = promoter_statesF)
+
+names(grouped_freq_mats) <- c("DMSO", "TRP")
 ```
 
 
 Finally, it's always a good idea to plot. So, we will make a boxplot showing a decrease of Pol II binding frequency upon TRP treatment.
 ```{r}
+DMSO <- as.data.frame(grouped_freq_mats$DMSO)
+DMSO$polII_all <- DMSO$PIC.polII + DMSO$polII
+
+TRP <- as.data.frame(grouped_freq_mats$TRP)
+TRP$polII_all <- TRP$PIC.polII + TRP$polII
+
+plot_df <- data.frame(DMSO = DMSO$polII_all, TRP = TRP$polII_all)
+plot_df <- reshape2::melt(plot_df)
+
+ggplot(plot_df, aes(x = variable, y = value, fill = variable)) +
+  geom_boxplot() +
+  xlab("Treatment") + ylab("Pol II binding frequency (%)") +
+  theme_bw()
 ```
 
 
@@ -292,11 +347,35 @@ I further analysed Pol II ChIP-seq, PRO-seq, DNase-seq, and MNase-seq from publi
 In the below chunk of code, we will correlate different data types with promoter state frequencies obtained from SMF.
 ```{r}
 # Load different data sets
-SMF_state_freq <- readRDS(paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/DM_S2_DE_promoter_states_freq_matrix_avg_downstream_bins.rds"))
-ChIP_seq <- readRDS(paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/S2_PolII_ChIP_seq.rds"))
-PRO_seq <- readRDS(paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/S2_PRO_seq.rds"))
-MNase_seq <- readRDS(paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/S2_MNase.rds"))
-DHS_seq <- readRDS(paste0(here::here(), "/data/dataset_3_S2_amplicon_TRP/S2_DHS.rds"))
+SMF_state_freq <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/DM_S2_DE_promoter_states_freq_matrix_avg_downstream_bins.rds")
+ChIP_seq <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/S2_PolII_ChIP_seq.rds")
+PRO_seq <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/S2_PRO_seq.rds")
+MNase_seq <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/S2_MNase.rds")
+DHS_seq <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/S2_DHS.rds")
 
 
+### Join data frames
+SMF_state_freq$row.names <- row.names(SMF_state_freq)
+ChIP_seq$row.names <- row.names(ChIP_seq)
+MNase_seq$row.names <- row.names(MNase_seq)
+PRO_seq$row.names <- row.names(PRO_seq)
+DHS_seq$row.names <- row.names(DHS_seq)
+
+# put all data frames into list
+df_list <- list(SMF_state_freq, 
+                ChIP_seq, 
+                MNase_seq,
+                PRO_seq,
+                DHS_seq)
+# merge all data frames in the list
+df_list %>% reduce(full_join, 
+                   by = "row.names") -> merged_df
+
+merged_df$row.names <- NULL
+
+merged_df %>% drop_na() -> merged_df
+
+plot_df <- cor(merged_df)
+### Heatmap
+pheatmap::pheatmap(plot_df)
 ```

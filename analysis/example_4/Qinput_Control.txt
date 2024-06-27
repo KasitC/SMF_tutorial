@@ -1,0 +1,4 @@
+FileName	SampleName
+/g/krebs/chatsiri/SMF_tutorial/data/dataset_4_TF_cooccupancy/SMF_MM_TKO_DE_Plate1_downsampled_R1.bam	TKO_DE_Control
+/g/krebs/chatsiri/SMF_tutorial/data/dataset_4_TF_cooccupancy/SMF_MM_TKO_DE_Plate1_downsampled_R2.bam	TKO_DE_Control
+
