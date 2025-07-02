@@ -2,14 +2,20 @@
 title: "Analysis of in-house generated GpC methylation (PEPC) vs commercial
   (NEB) enzymes"
 author: "Kasit Chatsirisupachai"
-date: "2024-06-21"
+date: "2025-07-01"
 output:
   html_document: default
   pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
+library(here)
+knitr::opts_knit$set(root.dir = here())
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = TRUE)
+```
+
+```{r check-wd}
+getwd()
 ```
 
 # Introduction
@@ -41,9 +47,30 @@ library(here)
 We will first create QuasR input file, which will be used by QuasR package to locate the BAM files and sample name.
 QuasR input file contains two columns: 1) BAM file names, and 2) sample names.
 All BAM files for this example are in the folder `/data/dataset_2_S2_PEPCvsNEB`
-```{r}
 
-Qinput <- "/g/krebs/chatsiri/SMF_tutorial/analysis/example_2/Qinput_PEPC_batch7_chr4.txt"
+```{r}
+Qinput <- "./analysis/example_2/Qinput_PEPC_batch7_chr4.txt"
+Qinput_df <- read.delim(Qinput)
+print(head((Qinput_df)))
+
+# vector of sample names
+sample_names <- Qinput_df$SampleName
+
+# vector of BAM file names
+bam_files <- Qinput_df$FileName
+
+# full paths
+full_paths <- here("data", "dataset_2_S2_PEPCvsNEB", bam_files)
+
+Qinput_df_new <- data.frame(FileName = full_paths, SampleName = sample_names)
+
+# write new Qinput file
+write.table(Qinput_df_new, file = here("analysis", "example_2", "Qinput_PEPC_batch7_chr4_full_path.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+Load new Qinput
+```{r}
+Qinput <- "./analysis/example_2/Qinput_PEPC_batch7_chr4_full_path.txt"
 ```
 
 ## 1. Cytosine conversion rate
@@ -52,7 +79,7 @@ Here, we will quantify the cytosine conversion rate of each sample, by asking ho
 Please note that this example only contain data from one chromosome. But in an actual full data set, we can simply write a loop over chromosomes to measure cytosine conversion rates.
 
 ```{r}
-chr_ConversionRate <- ConversionRate(sampleSheet = Qinput,
+chr_ConversionRate <- ConversionRate(sampleFile = Qinput,
                                      genome = BSgenome.Dmelanogaster.UCSC.dm6,
                                      chr = "chr4",
                                      cores = 4)
@@ -97,7 +124,7 @@ Now, we can compare methylation rate across samples. We will identify the methyl
 ### Call context methylation
 ```{r}
 #Qinput <- paste0(here::here(), "/analysis/example_2/Qinput_PEPC_batch7_chr4.txt")
-MySample <- suppressMessages(readr::read_delim(Qinput, delim = "\t")[[2]])
+MySample <- unique(suppressMessages(readr::read_delim(Qinput, delim = "\t")[[2]]))
 
 genome <- BSgenome.Dmelanogaster.UCSC.dm6
 
@@ -113,8 +140,8 @@ gr <- GRanges(seqnames = seqnames(Dmelanogaster)[5],
 print(gr)
 
 # Call context methylation
-Context_Methylation <- CallContextMethylation(sampleSheet = Qinput, 
-                                              sample = MySample, 
+Context_Methylation <- CallContextMethylation(sampleFile = Qinput, 
+                                              samples = MySample, 
                                               genome = genome, 
                                               RegionOfInterest = gr, 
                                               returnSM = FALSE,

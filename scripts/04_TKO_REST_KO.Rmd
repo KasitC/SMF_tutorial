@@ -1,7 +1,7 @@
 ---
 title: "Transcription factor (TF) binding frequency"
 author: "Kasit Chatsirisupachai"
-date: "2024-06-26"
+date: "2025-07-01"
 output:
   html_document: 
     df_print: paged
@@ -10,14 +10,18 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(here)
+knitr::opts_knit$set(root.dir = here())
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = TRUE)
 ```
 
+```{r check-wd}
+getwd()
+```
 # Introduction
-As you have learned within the course already, we can use SMF to study protein-DNA bindings, as examplified by RNA polymerase II (Pol II).
-In this exercise, we will leverage SMF to study the binding of transcription factors (TF) to DNA. The principle of the analysis is very similar to our Pol II example. Basically, you have to do the context methylation calling. Then, you will perform single-molecule sorting of each read, to assign molecular states (e.g. nucleosome, unbound, TF bound).
+In previous examples, we only analyse SMF data in the bulk level (i.e. average methylation). However, the actual advantage of SMF comes from the analysis at the 'single-molecule' level. With this type of analysis, we can assign a molecular state for each single DNA molecule in the sequencing data. Moreover, this will lead us to the 'frequency' of each molecular state across the population. 
 
-Here, we have a dataset of mouse embryonic stem cells (mESCs) "Control" and the mESCs with the transcription factor "REST" knocked out (REST KO). We will study REST bindings at their binding sites comparing between these two condition. These data sets come from one of the papers we sent to you earlier (Sonmezer et al., Mol. Cell, 2021). You can have a look at the Figure 2 in the paper.
+In this exercise, we will leverage SMF to study the binding of transcription factors (TF) to DNA. Here, we have a dataset of mouse embryonic stem cells (mESCs) "Control" and the mESCs with the transcription factor "REST" knocked out (REST KO). We will study REST bindings at their binding sites comparing between these two condition. These data sets come from one of the papers we sent to you earlier (Sonmezer _et al._, _Mol. Cell_, 2021). You can have a look at the Figure 2 in the paper.
 
 
 ## Data
@@ -40,16 +44,14 @@ library(ggplot2)
 
 ## Load objects
 First, we will load the GRanges object containing the binding sites for REST. 
-!!! DON'T FORGET TO CHANGE THE PATH TO YOUR OWN PATH !!!
 ```{r}
-REST_TFBS <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_4_TF_cooccupancy/REST_TFBSs.rds")
+REST_TFBS <- readRDS("./data/dataset_4_TF_cooccupancy/REST_TFBSs.rds")
 head(REST_TFBS)
 ```
 
 Next, we will load also the GRanges object containing the amplicon locations we will be working with.
-!!! DON'T FORGET TO CHANGE THE PATH TO YOUR OWN PATH !!!
 ```{r}
-amplicon_REST <- readRDS("/g/krebs/chatsiri/SMF_tutorial/data/dataset_4_TF_cooccupancy/Amplicon_REST_regions.rds")
+amplicon_REST <- readRDS("./data/dataset_4_TF_cooccupancy/Amplicon_REST_regions.rds")
 head(amplicon_REST)
 ```
 
@@ -60,25 +62,24 @@ Notice that we can locate the binding site of REST within each amplicon region b
 How many amplicon regions we are looking at? and What is the average width of these amplicon regions in the `amplicon_REST` object?
 
 Answer:
-
-Hint: use function `length()`, `width()` and `mean()`
 ```{r}
 ```
 
 
 Let's start analysing the data! As always, we need to load Qinput files. In this example, we will have two Qinput files, one for the Control sample and the other for the REST_KO sample. We will analyse each of them separately. The reason for this is that the Control sample was footprinted using both GpC and CpG enzymes, while the REST_KO sample was footprinted only by GpC enzyme.
 
-!!! DON'T FORGET TO CHANGE THE ABSOLUTE PATH IN THE QINPUT FILES TO YOUR OWN PATH. (remember we had this problem during the course) !!!
+!!! DON'T FORGET TO CHANGE THE ABSOLUTE PATH IN THE QINPUT FILES TO YOUR OWN PATH. !!!
 ```{r}
-Qinput_Control <- "/g/krebs/chatsiri/SMF_tutorial/analysis/example_4/Qinput_Control.txt"
-Qinput_REST_KO <- "/g/krebs/chatsiri/SMF_tutorial/analysis/example_4/Qinput_REST_KO.txt"
+Qinput_Control <- "./analysis/example_4/Qinput_Control.txt"
+Qinput_REST_KO <- "./analysis/example_4/Qinput_REST_KO.txt"
 ```
+
 
 ## One region as an example
 We will first take a look at the first amplicon region in a Control sample, as an example.
 
 ```{r}
-MySample <- suppressMessages(readr::read_delim(Qinput_Control, delim = "\t")[[2]])
+MySample <- unique(suppressMessages(readr::read_delim(Qinput_Control, delim = "\t")[[2]]))
 
 genome <- BSgenome.Mmusculus.UCSC.mm10
 
@@ -88,8 +89,8 @@ print(gr)
 
 ### Call context methylation
 ```{r}
-Methylation <- CallContextMethylation(sampleSheet = Qinput_Control, 
-                                      sample = MySample, 
+Methylation <- CallContextMethylation(sampleFile = Qinput_Control, 
+                                      samples = MySample, 
                                       genome = genome, 
                                       RegionOfInterest = gr, 
                                       coverage = 20, 
@@ -118,16 +119,18 @@ Answer:
 
 
 ### Single-molecule sorting
-Similar to the Pol II example previously, we can assign molecular state to each read. However, unlike the 4-bin strategy in the Pol II example, the TF binding is simpler. We will use the 3-bin strategy: the middle bin represents the TFBS and flanking by the other two bins.
+Next, we can assign molecular state to each read. We will use the 3-bin strategy: the middle bin represents the TFBS and flanking by the other two bins.
 
 From 3 bins, there can be 8 molecular states in total (`000`, `001`, `010`, `011`, `100`, `101`, `110`, and `111`).
 We will define 3 TF binding states from these 8 total states. 1) TF-bound: `101`, 2) unbound: `111`, and 3) nucleosome-bound: the other 6 states.
 
-Okay, let's now do the sorting. Remember we need to define the bins. Here, I will use the function `MakeBins` as we previously used, but this time with the `singleTF` BinType. Notice that with TF we don't need to use StrandAware option like in the Pol II example.
+Okay, let's now do the sorting. The bins are already defined in the package.
 
 ```{r}
-BinsCoordinates <- MakeBins(RegionsOfInterest = TFBS, BinType = "singleTF", StrandAware = FALSE)
-SortedReads <- list(TKO_DE_Control = SortReads(Methylation[[2]]$TKO_DE_Control, BinsCoordinates, coverage = 20))
+SortedReads <- SortReadsBySingleTF(MethSM = Methylation[[2]], TFBS = TFBS, coverage = 20)
+
+# How many reads in each pattern?
+lapply(SortedReads[[1]], length) %>% unlist() %>% print()
 ```
 
 We can define molecular states of TF binding as discussed.
@@ -147,6 +150,7 @@ Answer:
 
 Hint: use the `StateQuantification` function with the `TF_states` we just defined above as a parameter `states`.
 ```{r}
+
 ```
 
 
@@ -155,7 +159,7 @@ Hint: use the `StateQuantification` function with the `TF_states` we just define
 Now, it's time to analyse the REST_KO sample to compare REST binding frequency in this example region.
 
 ```{r}
-MySample <- suppressMessages(readr::read_delim(Qinput_REST_KO, delim = "\t")[[2]])
+MySample <- unique(suppressMessages(readr::read_delim(Qinput_REST_KO, delim = "\t")[[2]]))
 
 genome <- BSgenome.Mmusculus.UCSC.mm10
 
@@ -167,8 +171,8 @@ print(gr)
 ### Call context methylation
 Again, we perform call context methylation on the REST_KO sample. As it is a single-enzyme treatment (only GpC), the `CallContextMethylation` function returns two contexts (GpC and CpG) separately.
 ```{r}
-Methylation <- CallContextMethylation(sampleSheet = Qinput_REST_KO, 
-                                      sample = MySample, 
+Methylation <- CallContextMethylation(sampleFile = Qinput_REST_KO, 
+                                      samples = MySample, 
                                       genome = genome, 
                                       RegionOfInterest = gr, 
                                       coverage = 20, 
@@ -193,6 +197,14 @@ Answer:
 
 You can type on the below code chunck for plotting.
 ```{r}
+# locate REST binding sites for plotting
+TFBS <- REST_TFBS[REST_TFBS$absolute.idx == gr$TargetSite]
+
+# plot average SMF signal 
+PlotAvgSMF(MethGR = Methylation[[1]]$DGCHN,
+           RegionOfInterest = gr,
+           TFBSs = TFBS)
+
 ```
 
 
@@ -200,8 +212,14 @@ You can type on the below code chunck for plotting.
 Similar to the control sample, we can sort each DNA molecule in different states (nucleosome, unbound, TF-bound).
 Again, we only use information from the GC context.
 ```{r}
-BinsCoordinates <- MakeBins(RegionsOfInterest = TFBS, BinType = "singleTF", StrandAware = FALSE)
-SortedReads <- list(REST_NO_KO = SortReads(Methylation[[2]]$REST_NO_KO$DGCHN, BinsCoordinates, coverage = 20))
+# retain only GpC info for sorting
+MethSM <- list()
+MethSM[[1]] <- Methylation[[2]][[1]]$DGCHN
+
+SortedReads <- SortReadsBySingleTF(MethSM = MethSM, TFBS = TFBS, coverage = 20)
+
+# How many reads in each pattern?
+lapply(SortedReads[[1]], length) %>% unlist() %>% print()
 ```
 
 
@@ -212,6 +230,7 @@ Answer:
 
 Hint: use the `StateQuantification` function with the `TF_states` as a parameter `states`.
 ```{r}
+
 ```
 
 
@@ -221,7 +240,7 @@ Now, we will simultaneously quantify REST binding states in multiple REST bindin
 
 ### Control sample
 ```{r, message = FALSE}
-MySample <- suppressMessages(readr::read_delim(Qinput_Control, delim = "\t")[[2]])
+MySample <- unique(suppressMessages(readr::read_delim(Qinput_Control, delim = "\t")[[2]]))
 genome <- BSgenome.Mmusculus.UCSC.mm10
 
 
@@ -233,21 +252,19 @@ SortedReads_Control <- lapply(seq_along(amplicon_REST), function(i) {
   ExperimentType <- suppressMessages(SingleMoleculeFootprinting::DetectExperimentType(Samples = MySample))
   
   # Call context methylation
-  Methylation <- CallContextMethylation(sampleSheet = Qinput_Control,
-                                        sample = MySample,
+  Methylation <- CallContextMethylation(sampleFile = Qinput_Control,
+                                        samples = MySample,
                                         genome = genome,
                                         RegionOfInterest = CurrentWindow,
                                         coverage = 20, 
                                         ConvRate.thr = 0.2,
                                         returnSM = TRUE)
   
-  # locate REST binding sites and make bins
+  # locate REST binding sites
   TFBS <- REST_TFBS[REST_TFBS$absolute.idx == CurrentWindow$TargetSite]
-  BinsCoordinates <- MakeBins(RegionsOfInterest = TFBS, BinType = "singleTF", StrandAware = FALSE)
-  
+
   # Sort reads
-  SortedReads_window <- list(TKO_DE_Control = SortReads(Methylation[[2]]$TKO_DE_Control, BinsCoordinates, coverage = 20))
-  
+  SortedReads_window <- SortReadsBySingleTF(MethSM = Methylation[[2]], TFBS = TFBS, coverage = 20)
   names(SortedReads_window) <- names(amplicon_REST[i])
   
   return(SortedReads_window)
@@ -270,7 +287,7 @@ print(head(StateFrequency_Control))
 
 ### REST_KO sample
 ```{r, message = FALSE}
-MySample <- suppressMessages(readr::read_delim(Qinput_REST_KO, delim = "\t")[[2]])
+MySample <- unique(suppressMessages(readr::read_delim(Qinput_REST_KO, delim = "\t")[[2]]))
 genome <- BSgenome.Mmusculus.UCSC.mm10
 
 
@@ -282,20 +299,24 @@ SortedReads_REST_KO <- lapply(seq_along(amplicon_REST), function(i) {
   ExperimentType <- suppressMessages(SingleMoleculeFootprinting::DetectExperimentType(Samples = MySample))
   
   # Call context methylation
-  Methylation <- CallContextMethylation(sampleSheet = Qinput_REST_KO,
-                                        sample = MySample,
+  Methylation <- CallContextMethylation(sampleFile = Qinput_REST_KO,
+                                        samples = MySample,
                                         genome = genome,
                                         RegionOfInterest = CurrentWindow,
                                         coverage = 20, 
                                         ConvRate.thr = 0.2,
                                         returnSM = TRUE)
   
-  # locate REST binding sites and make bins
+  # locate REST binding sites
   TFBS <- REST_TFBS[REST_TFBS$absolute.idx == CurrentWindow$TargetSite]
-  BinsCoordinates <- MakeBins(RegionsOfInterest = TFBS, BinType = "singleTF", StrandAware = FALSE)
+  
+  # retain only GpC info
+  MethSM <- list()
+  MethSM[[1]] <- Methylation[[2]][[1]]$DGCHN
   
   # Sort reads
-  SortedReads_window <- list(REST_NO_KO = SortReads(Methylation[[2]]$REST_NO_KO$DGCHN, BinsCoordinates, coverage = 20))
+  SortedReads_window <- SortReadsBySingleTF(MethSM = MethSM, TFBS = TFBS, coverage = 20)
+  names(SortedReads_window) <- names(amplicon_REST[i])
   
   names(SortedReads_window) <- names(amplicon_REST[i])
   
@@ -331,4 +352,5 @@ plot_df <- data.frame(Control = Control_binding_freq$Freqs, REST_KO = REST_KO_bi
 Can you finish the plot?
 
 ```{r}
+
 ```

@@ -1,15 +1,22 @@
 ---
 title: "Methylation efficiency of enzymes"
 author: "Kasit Chatsirisupachai and Guido Barzaghi"
-date: '2024-06-12'
+date: '2025-07-01'
 output:
   html_document: default
   pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
+library(here)
+knitr::opts_knit$set(root.dir = here())
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = TRUE)
 ```
+
+```{r check-wd}
+getwd()
+```
+
 
 # Introduction
 Single-molecule footprinting (SMF) is a technique to detect protein-DNA bindings at a single-molecule resolution. This technique leverages the ability of DNA methyltransferases, M.CviPI and M.SssI, to methylate cytosines at the accessible regions in the GpC and CpG context, respectively. In order to ensure an unbiased quantification of protein-DNA contacts, methylation efficiency should be uniform across all possible sequence contexts. In this workshop, we will examine M.CviPI and M.SssI methylation efficiencies in naked lambda DNA as a function of enzyme concentration and nucleotide contexts.
@@ -26,7 +33,7 @@ library(QuasR)
 library(SingleMoleculeFootprinting)
 library(BSgenome)
 library(tidyverse)
-library(here)
+library(readr)
 ```
 
 ## Qinput file
@@ -35,24 +42,33 @@ QuasR input file contains two columns: 1) BAM file names, and 2) sample names.
 All BAM files for this example are in the folder `/data/dataset_1_lambdaDNA`
 For this example, the Qinput file was already generated `/analysis/example_1/Qinput_lambda.txt`, but need to be modified to add the right path to the file names.
 ```{r}
-Qinput <- paste0(here::here(), "/analysis/example_1/Qinput_lambda.txt")
+Qinput <- "./analysis/example_1/Qinput_lambda.txt"
 Qinput_df <- read.delim(Qinput)
 print(head((Qinput_df)))
 
-# replace file names with a full path
-Qinput_df$FileName <- paste0(here::here(), "/data/dataset_1_lambdaDNA/", Qinput_df$FileName)
-print(head((Qinput_df)))
+# vector of sample names
+sample_names <- Qinput_df$SampleName
 
+# vector of BAM file names
+bam_files <- Qinput_df$FileName
 
-write.table(Qinput_df, paste0(here::here(), "/analysis/example_1/Qinput_lambda_full_path.txt"),
-                              col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
+# full paths
+full_paths <- here("data", "dataset_1_lambdaDNA", bam_files)
 
-Qinput <- paste0(here::here(), "/analysis/example_1/Qinput_lambda_full_path.txt")
+Qinput_df_new <- data.frame(FileName = full_paths, SampleName = sample_names)
+
+# write new Qinput file
+write.table(Qinput_df_new, file = here("analysis", "example_1", "Qinput_lambda_full_path.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+Load new Qinput
+```{r}
+Qinput <- "./analysis/example_1/Qinput_lambda_full_path.txt"
 ```
 
 ## Load reference genome
 ```{r}
-LambdaGenomeSeq = readDNAStringSet(filepath = paste0(here::here(), "/data/dataset_1_lambdaDNA/LambdaGenome2.fasta"))
+LambdaGenomeSeq = readDNAStringSet(filepath = "./data/dataset_1_lambdaDNA/LambdaGenome2.fasta")
 names(LambdaGenomeSeq) = "J02459.1"
 LambdaGenomeSeq
 ```
@@ -61,7 +77,7 @@ LambdaGenomeSeq
 The files were already aligned. So, this step will only for checking the BAM files and create a QuasR project object.
 ```{r}
 QuasRprj <- QuasR::qAlign(sampleFile = Qinput, 
-                          genome = paste0(here::here(), "/data/dataset_1_lambdaDNA/LambdaGenome2.fasta"), 
+                          genome = "./data/dataset_1_lambdaDNA/LambdaGenome2.fasta", 
                           paired = "fr",
                           bisulfite = "undir")
 QuasRprj@aligner <- "Rbowtie"
@@ -154,6 +170,10 @@ AllCs %>%
 head(EDA_DF_GCs)
 ```
 
-Continue...
+
+How to represent this result?
+```{r}
+
+```
 
 

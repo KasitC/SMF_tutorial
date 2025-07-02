@@ -1,5 +1,0 @@
-FileName	SampleName
-/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/DMSO_DE_S2_subset_R1.bam	DMSO_DE_S2
-/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/DMSO_DE_S2_subset_R2.bam	DMSO_DE_S2
-/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/TRP_DE_S2_subset_R1.bam	TRP_DE_S2
-/g/krebs/chatsiri/SMF_tutorial/data/dataset_3_S2_amplicon_TRP/TRP_DE_S2_subset_R2.bam	TRP_DE_S2
