@@ -25,7 +25,6 @@ Single-molecule footprinting (SMF) is a technique to detect protein-DNA bindings
 ## Data
 To footprint the DNA, Naked lambda DNA was treated with either M.CviPI (GpC) and M.SssI (CpG) in various concentrations (0, 0.2, 0.7, 0.75, 1.2, 1.5, 2, 3, 4, and 10 units/ug).
 The sequencing was performed on Illumina MiSeq.
-Raw sequencing files were aligned to the LambdaGenome using `QuasR` package.
 
 ## Libraries
 ```{r}
@@ -36,13 +35,61 @@ library(tidyverse)
 library(readr)
 ```
 
-## Qinput file
-We will first create QuasR input file, which will be used by QuasR package to locate the BAM files and sample name.
+## Alignment!
+We will first create QuasR input file, which will be used by QuasR package to locate the fastq files and sample name.
+As the data was sequenced in paired-end, our QuasR input file will contain three columns: 1) file name for the read 1 fastq, 2) file name for the read 2 fastq, and 3) sample names.
+For this example, the Qinput file was already generated `/analysis/example_1/Qinput_lambda_for_alignment.txt`, but need to be modified to add the right path to the file names. All necessary files for this example are in the folder `/data/dataset_1_lambdaDNA`
+
+```{r}
+Qinput <- "./analysis/example_1/Qinput_lambda_for_alignment.txt"
+Qinput_df <- read.delim(Qinput)
+print(Qinput_df)
+
+# vector of sample names
+sample_names <- Qinput_df$SampleName
+
+# vector of fastq file names
+read1_files <- Qinput_df$FileName1
+read2_files <- Qinput_df$FileName2
+
+# full paths
+read1_full_paths <- here("data", "dataset_1_lambdaDNA", read1_files)
+read2_full_paths <- here("data", "dataset_1_lambdaDNA", read2_files)
+
+Qinput_df_new <- data.frame(FileName1 = read1_full_paths, 
+                            FileName2 = read2_full_paths, 
+                            SampleName = sample_names)
+
+# write new Qinput file
+write.table(Qinput_df_new, file = here("analysis", "example_1", "Qinput_lambda_for_alignment_full_path.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+Now it's time to perform alignment. We will use QuasR package for this, which under the hood will run rbowtie.
+```{r}
+# load new Qinput
+Qinput <- "./analysis/example_1/Qinput_lambda_for_alignment_full_path.txt"
+
+QuasRprj <- QuasR::qAlign(sampleFile = Qinput, 
+                          genome = "./data/dataset_1_lambdaDNA/LambdaGenome2.fasta", 
+                          aligner = "Rbowtie",
+                          paired = "fr",
+                          bisulfite = "undir",
+                          alignmentParameter="-e 70 -X 1000 -k 2 --best --strata",
+                          alignmentsDir = "./data/dataset_1_lambdaDNA/test_alignment",
+                          projectName = "test_alignment")
+QuasRprj@aligner <- "Rbowtie"
+```
+
+Once it is done, you should have two BAM files. But there are a lot more samples, so for the sake of time, I already provided BAM files for all the conditions we will be working with.
+
+
+## Working with provided BAM files
+We will, again, first create QuasR input file, which will be used by QuasR package to locate the BAM files and sample name.
 QuasR input file contains two columns: 1) BAM file names, and 2) sample names.
 All BAM files for this example are in the folder `/data/dataset_1_lambdaDNA`
 For this example, the Qinput file was already generated `/analysis/example_1/Qinput_lambda.txt`, but need to be modified to add the right path to the file names.
 ```{r}
-Qinput <- "./analysis/example_1/Qinput_lambda.txt"
+Qinput <- "./analysis/example_1/Qinput_lambda_for_alignment.txt"
 Qinput_df <- read.delim(Qinput)
 print(head((Qinput_df)))
 

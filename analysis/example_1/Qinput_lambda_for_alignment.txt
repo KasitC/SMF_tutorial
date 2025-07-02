@@ -1,0 +1,3 @@
+FileName1	FileName2	SampleName
+raw/000000000-JFM6H_SMFMMLAMTKODE280421_21s001760-1-1_Barzaghi_lane1CG0_1_sequence_val_1.fq.gz	raw/000000000-JFM6H_SMFMMLAMTKODE280421_21s001760-1-1_Barzaghi_lane1CG0_2_sequence_val_2.fq.gz	CG0_test_align
+raw/000000000-JFM6H_SMFMMLAMTKODE280421_21s001760-1-1_Barzaghi_lane1GC10_1_sequence_val_1.fq.gz	raw/000000000-JFM6H_SMFMMLAMTKODE280421_21s001760-1-1_Barzaghi_lane1GC10_2_sequence_val_2.fq.gz	GC10_test_align
