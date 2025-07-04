@@ -1,7 +1,7 @@
 ---
 title: "Transcription factor (TF) binding frequency"
 author: "Kasit Chatsirisupachai"
-date: "2025-07-01"
+date: "2025-07-04"
 output:
   html_document: 
     df_print: paged
@@ -83,11 +83,13 @@ MySample <- unique(suppressMessages(readr::read_delim(Qinput_Control, delim = "\
 
 genome <- BSgenome.Mmusculus.UCSC.mm10
 
-gr <- amplicon_REST[1]
+gr <- amplicon_REST[15]
 print(gr)
 ```
 
 ### Call context methylation
+Notice that this time we set the `returnSM` argument to `TRUE`, in contrast to the previous example.
+
 ```{r}
 Methylation <- CallContextMethylation(sampleFile = Qinput_Control, 
                                       samples = MySample, 
@@ -100,7 +102,15 @@ Methylation <- CallContextMethylation(sampleFile = Qinput_Control,
 
 ```
 
-### Plot average methylation
+### Task: Spend some time exploring the Methylation object, how does it differ from the Methylation object from our previous example?
+```{r}
+Methylation
+```
+
+
+
+### Plot average SMF signal
+!!! Be careful, what is the relationship between average SMF and methylation level?
 ```{r}
 # locate REST binding sites
 TFBS <- REST_TFBS[REST_TFBS$absolute.idx == gr$TargetSite]
@@ -122,7 +132,7 @@ Answer:
 Next, we can assign molecular state to each read. We will use the 3-bin strategy: the middle bin represents the TFBS and flanking by the other two bins.
 
 From 3 bins, there can be 8 molecular states in total (`000`, `001`, `010`, `011`, `100`, `101`, `110`, and `111`).
-We will define 3 TF binding states from these 8 total states. 1) TF-bound: `101`, 2) unbound: `111`, and 3) nucleosome-bound: the other 6 states.
+We will define 3 TF binding states from these 8 total states. 1) TF-bound: `101`, 2) unbound: `111`, and 3) nucleosome-bound `000`, `100`, and `001`. The remaining three states (`010`, `110`, and `011`) are ambiguous for biological interpretation, thus we will call them unassigned.
 
 Okay, let's now do the sorting. The bins are already defined in the package.
 
@@ -135,9 +145,8 @@ lapply(SortedReads[[1]], length) %>% unlist() %>% print()
 
 We can define molecular states of TF binding as discussed.
 ```{r}
-TF_states <- list(nucleosome = c("000", "001", "010", "011", "100", "110"),
-                  unbound = "111",
-                  TF_bound = "101")
+TF_states = SingleTFStates()
+TF_states
 ```
 
 Finally, we can quantify state frequency of nucleosome, unbound, and TF-bound states.
@@ -154,6 +163,18 @@ Hint: use the `StateQuantification` function with the `TF_states` we just define
 ```
 
 
+### Make single-molecule plot
+```{r}
+PlotSM(MethSM = Methylation[[2]], RegionOfInterest = gr, sorting.strategy = "classical", SortedReads = SortedReads)
+
+StateQuantificationPlot(SortedReads = SortedReads, states = SingleTFStates())
+
+```
+
+Find the way to align these plots side-by-side?
+```{r}
+```
+
 
 ## REST KO sample
 Now, it's time to analyse the REST_KO sample to compare REST binding frequency in this example region.
@@ -163,7 +184,7 @@ MySample <- unique(suppressMessages(readr::read_delim(Qinput_REST_KO, delim = "\
 
 genome <- BSgenome.Mmusculus.UCSC.mm10
 
-gr <- amplicon_REST[1]
+gr <- amplicon_REST[15]
 print(gr)
 
 ```
@@ -342,8 +363,13 @@ print(head(StateFrequency_REST_KO))
 We will now make boxplot to visualise the difference in REST binding between the control and the REST_KO samples.
 I preprocessed the plotting dataframe for you in the below chuck of code.
 ```{r}
-StateFrequency_Control %>% filter(State == "TF_bound") %>% select(Freqs) -> Control_binding_freq
-StateFrequency_REST_KO %>% filter(State == "TF_bound") %>% select(Freqs) -> REST_KO_binding_freq
+Control_binding_freq <- StateFrequency_Control %>% 
+  filter(State == "bound") %>% 
+  select(Freqs)
+
+REST_KO_binding_freq <- StateFrequency_REST_KO %>% 
+  filter(State == "bound") %>% 
+  select(Freqs)
 
 plot_df <- data.frame(Control = Control_binding_freq$Freqs, REST_KO = REST_KO_binding_freq$Freqs)
 ```

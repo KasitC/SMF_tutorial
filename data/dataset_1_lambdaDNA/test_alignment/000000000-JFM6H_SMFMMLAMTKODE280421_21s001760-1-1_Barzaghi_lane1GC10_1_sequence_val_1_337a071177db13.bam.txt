@@ -1,0 +1,23 @@
+reads.FileName1	/g/krebs/chatsiri/SMF_tutorial/data/dataset_1_lambdaDNA/raw/000000000-JFM6H_SMFMMLAMTKODE280421_21s001760-1-1_Barzaghi_lane1GC10_1_sequence_val_1.fq.gz
+reads.FileName2	/g/krebs/chatsiri/SMF_tutorial/data/dataset_1_lambdaDNA/raw/000000000-JFM6H_SMFMMLAMTKODE280421_21s001760-1-1_Barzaghi_lane1GC10_2_sequence_val_2.fq.gz
+reads.md5subsum1	475df816ba8440fe2c5f21d28112352d
+reads.md5subsum2	523623defafbed4ab5dd896b3c0061ed
+samplesFormat	fastq
+genome	/g/krebs/chatsiri/SMF_tutorial/data/dataset_1_lambdaDNA/LambdaGenome2.fasta
+genome.md5	35737509af196eff73a9e94fa57287b4
+genomeFormat	file
+aux	NA
+aux.md5	NA
+aligner	Rbowtie
+aligner.version	1.44.0
+maxHits	1
+paired	fr
+splicedAlignment	FALSE
+snpFile	NA
+snpFile.md5	NA
+bisulfite	undir
+alignmentParameter	-e 70 -X 1000 -k 2 --best --strata
+geneAnnotation	NA
+geneAnnotationFormat	NA
+geneAnnotation.md5	NA
+QuasR.version	1.44.0

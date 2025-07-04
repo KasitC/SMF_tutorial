@@ -192,7 +192,7 @@ panel.cor <- function(x, y, digits=2, prefix="", cex.cor, ...) {
 
 
 #### Plot GC methylation
-```{r}
+```{r, fig.height=4.5, fig.width=4.5}
 Context_Methylation_DGCHN <- Context_Methylation$DGCHN
 MethRate_df <- Context_Methylation_DGCHN %>% 
     as.data.frame() %>% 
@@ -212,12 +212,17 @@ p <- pairs(MethRate_df,
            cex.labels = 1)
 ```
 
+
+```{r}
+Context_Methylation_DGCHN
+```
+
 From the histogram, we can see that the average methylation level increases as we increase the PEPC enzyme concentration (24, 32, 40 units). Furthermore, we can see decent correlation levels across samples. The correlation between PEPC enzyme-treated samples and NEB enzyme-treated samples increases following the PEPC enzyme concentration.
 
 
 #### Plot CG methylation
 As a comparison, we will plot the average methylation correlation across samples in the CG context. This we do not expect a correlation, as we did not make a CG enzyme treatment. Indeed, the situation will be different if we perform dual-enzyme treatment.
-```{r}
+```{r, fig.width=4.5, fig.height=4.5}
 Context_Methylation_NWCGW <- Context_Methylation$NWCGW
 MethRate_df <- Context_Methylation_NWCGW %>% 
     as.data.frame() %>% 

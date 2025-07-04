@@ -89,7 +89,7 @@ QuasR input file contains two columns: 1) BAM file names, and 2) sample names.
 All BAM files for this example are in the folder `/data/dataset_1_lambdaDNA`
 For this example, the Qinput file was already generated `/analysis/example_1/Qinput_lambda.txt`, but need to be modified to add the right path to the file names.
 ```{r}
-Qinput <- "./analysis/example_1/Qinput_lambda_for_alignment.txt"
+Qinput <- "./analysis/example_1/Qinput_lambda.txt"
 Qinput_df <- read.delim(Qinput)
 print(head((Qinput_df)))
 
@@ -137,6 +137,7 @@ QuasRprj
 Methylation = QuasR::qMeth(proj = QuasRprj, mode = "allC")
 
 head(Methylation)
+length(Methylation)
 ```
 
 ## Processing methylation calling output
@@ -188,6 +189,7 @@ head(KMERS, 3)
 tail(KMERS, 3)
 
 AllCs$Kmer_Context = KMERS
+head(AllCs)
 ```
 
 
