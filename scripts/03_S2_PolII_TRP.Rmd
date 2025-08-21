@@ -83,9 +83,12 @@ print(TSSs)
 #### Question 1: 
 How many promoters are we looking at? How many of them are on the "+" strand and how many are on the "-" strand? 
 
-Answer:
+Answer (code):
 ```{r}
 ```
+
+Answer (description):
+
 
 
 ## Call context methylation
@@ -141,7 +144,10 @@ We will assign each DNA molecule to a promoter state (unassigned, nucleosome, un
   * nucleosome - The promoter is occupied by nucleosome.
   * unassigned - We are not sure what this could mean.
 
-This will allow us to calculate the frequency of Pol II occupancy (frequency of the PIC.polII + polII states).
+This will allow us to calculate the frequency of Pol II occupancy.
+
+"NOTE THAT THE FREQUENCY OF POL II OCCUPANCY = PIC.polII + polII states."
+
 
 These promoter states can be dictated by a four-bin methylation pattern. 
 The bins and their relative location to the TSS are:
