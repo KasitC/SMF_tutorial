@@ -1,0 +1,374 @@
+---
+title: "Single-molecule analysis of the change in RNA Pol II binding frequency upon triptolide treatment"
+author: "Kasit Chatsirisupachai"
+date: "2025-08-21"
+output:
+  html_document: 
+    df_print: paged
+  pdf_document: 
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+library(here)
+knitr::opts_knit$set(root.dir = here())
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = TRUE)
+```
+
+```{r check-wd}
+getwd()
+```
+
+# Introduction
+In this exercise, we will re-analyse a subset of data from the first SMF paper from the Krebs lab (Krebs _et al._, _Mol. Cell_, 2017). This paper investigated the turnover of RNA polymerase II (Pol II) at _Drosophila_ promoters. The data has also been re-analysed in Chatsirisupachai & Moene _et al._, _Mol. Syst. Biol._, 2025. To study Pol II occupancy, each DNA molecule was assigned into one of the five promoter states (nucleosome, unbound, PIC, PIC.polII, and polII), based on the biology of known promoter motifs.
+As shown in the figure in the folder `./analysis/example_3/PolII_bins.png`, we will use the four-bin strategy to assign promoter states. The four bins consist of 1. upstream bin, 2. TATA-box, 3. paused Pol II site, and 4. downstream bin. The black dashed line indicates transcription start site (TSS).
+
+In the Pol II figure, you will see two footprints, one at the TATA-box bin which corresponds to the footprint of Pre-initiation complex (PIC). The other footprint downstream of the TSS corresponds to paused Pol II. The full description of how we assign promoter states based on these four bins will come later in this markdown.
+
+## Data
+The data is the targeted amplicon dual-enzyme SMF of selected _Drosophila_ promoters on S2 cell line, with or without triptolide (TRP) treatment, an inhibitor of transcription initiation. (You may already guess what should the footprint look like in the present of TRP) 
+SMF library were sequenced in paired-end using Illumina platform. Once obtain the raw sequencing data, Fastq files were aligned to the _Drosophila_ dm6 genome using `QuasR` package.
+
+
+# Pol II analysis
+
+## Load libraries
+(Make sure that you have all libraries installed)
+```{r, message=FALSE}
+library(QuasR)
+library(SingleMoleculeFootprinting)
+library(BSgenome.Dmelanogaster.UCSC.dm6)
+library(tidyverse)
+library(ggplot2)
+library(here)
+library(stringi)
+```
+
+## Create QuasR input file
+Similar to the previous example, we will first create QuasR input file. (Remember that we will create a new file containing the absolute path for your computer)
+All BAM files for this example are in the folder `/data/dataset_3_S2_amplicon_TRP`
+
+```{r}
+Qinput <- "./analysis/example_3/Qinput_S2_DMSOvsTRP_subset.txt"
+Qinput_df <- read.delim(Qinput)
+print(head((Qinput_df)))
+
+# vector of sample names
+sample_names <- Qinput_df$SampleName
+
+# vector of BAM file names
+bam_files <- Qinput_df$FileName
+
+# full paths
+full_paths <- here("data", "dataset_3_S2_amplicon_TRP", bam_files)
+
+Qinput_df_new <- data.frame(FileName = full_paths, SampleName = sample_names)
+
+# write new Qinput file
+write.table(Qinput_df_new, file = here("analysis", "example_3", "Qinput_S2_DMSOvsTRP_subset_full_path.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+Load new Qinput
+```{r}
+Qinput <- "./analysis/example_3/Qinput_S2_DMSOvsTRP_subset_full_path.txt"
+```
+
+## Load the GRanges object containing promoters of interest
+```{r}
+TSSs <- readRDS("./data/dataset_3_S2_amplicon_TRP/TSS_GRanges.rds")
+print(TSSs)
+```
+
+
+#### Question 1: 
+How many promoters are we looking at? How many of them are on the "+" strand and how many are on the "-" strand? 
+
+Answer:
+```{r}
+```
+
+
+## Call context methylation
+As an example, we will first work on only one promoter region for now.
+
+```{r}
+MySample <- unique(suppressMessages(readr::read_delim(Qinput, delim = "\t")[[2]]))
+
+genome <- BSgenome.Dmelanogaster.UCSC.dm6
+
+# define region of interest by extending the TSS to cover 500 bp (250 upstream and 250 downstream)
+# select only one TSS: NM_080188.3
+TSS <- TSSs[TSSs$gene_id == "NM_080188.3",]
+gr <- resize(TSS, 500, fix = "center")
+
+print(gr)
+
+# Call context methylation
+Methylation <- CallContextMethylation(sampleFile = Qinput, 
+                                      samples = MySample, 
+                                      genome = genome, 
+                                      RegionOfInterest = gr, 
+                                      coverage = 20, 
+                                      ConvRate.thr = NULL, 
+                                      returnSM = TRUE,
+                                      clObj = 1)
+```
+
+
+The first object in Methylation contains the bulk average methylation level at each cytosine.
+```{r}
+print(Methylation[[1]])
+```
+
+
+#### Question 2: 
+Write the code to plot the average SMF signal (look at our REST knockout example if you can't recall the function). You can leave the `TFBSs` argument in the function empty. 
+And Describe 1) What are we plotting? What are the x- and y-axes? and 2) What do you see?
+
+Answer (code):
+```{r}
+```
+
+Answer (description):
+
+
+
+## Beyond bulk analysis: Single-molecule sorting and quantification of promoter state frequencies
+We will assign each DNA molecule to a promoter state (unassigned, nucleosome, unbound, PIC, PIC.polII, and polII), where:
+  * polII - only Pol II bound at the promoter
+  * PIC.polII - PIC and Pol II bound at the promoter
+  * unbound - The promoter is accessible.
+  * nucleosome - The promoter is occupied by nucleosome.
+  * unassigned - We are not sure what this could mean.
+
+This will allow us to calculate the frequency of Pol II occupancy (frequency of the PIC.polII + polII states).
+
+These promoter states can be dictated by a four-bin methylation pattern. 
+The bins and their relative location to the TSS are:
+1. upstream [-58:-43], 2. TATA-box [-36:-22], 3. paused Pol II [28:47], and 4. downstream [54:69]
+as shown in the figure `./analysis/example_3/PolII_bins.png`
+
+We will define an average cytosine methylation status in each bin. Thus, a vector of 4 can be derived.
+For example, if there is only a Pol II bound at the paused Pol II site, and the other bins are unoccupied, we will encode a pattern `1101`. There are 16 patters in total ($2^4$.) 
+The state definition is shown in the figure `./analysis/example_3/State_definitions.png`
+
+
+First, let's look at the second object in the Methylation object from above. This represents a sparse matrix containing single-molecule methylation status for each DNA molecule. Rows are DNA molecules, while columns are positions of each cytosine. `1` means unmethylated cytosine (i.e. "protected") and `2` means methylated cytosine (i.e. accessible).
+
+```{r}
+# DMSO
+print(head(Methylation[[2]]$DMSO_DE_S2))
+
+# TRP
+print(head(Methylation[[2]]$TRP_DE_S2))
+```
+
+Here, we have to define the bin positions to the promoter we are working with. We can create the function `MakePromoterBins` to do the job. 
+As some promoters are located on the minus strand, we have to take this into account. (Yet, our example promoter (NM_080188.3) is on the plus strand)
+```{r}
+MakePromoterBins <- function(RegionsOfInterest, StrandAware = TRUE){
+    
+  ### Select viewpoint (start coordinate of the region of interest)
+  viewPoint <- as.numeric(start(RegionsOfInterest))
+  
+  ### Bin definitions
+  bins <- list(up = c(-58, -43), TATA = c(-36, -22), PolII = c(28, 47), down=c(54, 69))
+  
+  message("Designing sorting bins")
+  
+  
+  ### bin coordinates
+  binList <- lapply(1:length(bins), function(i){
+    # select bin
+    binAbsPos <- bins[[i]]
+    binName <- names(bins[i])
+    # get bin according to StrandAware status
+    if(StrandAware == TRUE){
+      BinsCoordinates <- GRanges(seqnames = seqnames(RegionsOfInterest),
+                                 ranges = IRanges(
+                                   start = ifelse(as.logical(strand(RegionsOfInterest) == '+'), viewPoint + binAbsPos[1], viewPoint - binAbsPos[2]),
+                                   end = ifelse(as.logical(strand(RegionsOfInterest) == '+'), viewPoint + binAbsPos[2], viewPoint - binAbsPos[1])),
+                                 strand = strand(RegionsOfInterest),
+                                 seqinfo = seqinfo(RegionsOfInterest))
+      } else if(StrandAware == FALSE){
+        BinsCoordinates <- GRanges(seqnames = seqnames(RegionsOfInterest),
+                                   ranges = IRanges(
+                                     start =  viewPoint + binAbsPos[1],
+                                     end = viewPoint + binAbsPos[2]),
+                                   seqinfo = seqinfo(RegionsOfInterest))
+        }
+    # bin name (eg. upstream, TATA, etc.)
+    BinsCoordinates$name <- binName
+    # feature name
+    names(BinsCoordinates) <- names(RegionsOfInterest)
+    return(BinsCoordinates)
+    })
+  
+  binList <- unique(sort(unlist(GRangesList(binList))))
+  
+  return(binList)
+  }
+```
+
+Make bins for the example promoter
+```{r}
+BinsCoordinates <- MakePromoterBins(RegionsOfInterest = TSS, StrandAware = TRUE)
+print(BinsCoordinates)
+
+strand <- unique(as.character(strand(BinsCoordinates)))
+print(strand)
+```
+
+
+Next, we can sort each read into one of the 16 patterns (`./analysis/example_3/State_definitions.png`). We will use the `SortedReads` function for this purpose.
+Again, we need to define the new SortReads function to accommodate the "-" strand.
+```{r}
+SortReadsPromoter <- function(MethSM, BinsCoordinates, coverage=NULL, strand = "+"){
+
+  message("Collecting summarized methylation for bins")
+  binMethylationList = lapply(seq_along(BinsCoordinates), function(i){
+    BinMethylation(MethSM = MethSM, Bin = BinsCoordinates[i])
+  })
+
+	message("Subsetting those reads that cover all bins")
+	ReadsSubset = Reduce(intersect, lapply(binMethylationList, function(x){names(x)}))
+	if (length(ReadsSubset) < coverage){
+	  message(paste0("Less than ", coverage, " reads found to cover all sorting bins...skipping"))
+	  return(list())
+	}
+
+	message("Summarizing reads into patterns")
+	binMethylationList_subset = lapply(binMethylationList, function(x){as.character(x[ReadsSubset])})
+	MethPattern = Reduce(paste0, binMethylationList_subset)
+	
+	# reverse pattern if strand == "-"
+	if(strand == "-"){
+	  MethPattern <- unlist(lapply(MethPattern, stri_reverse))
+	}
+
+	message("Splitting reads by pattern")
+	if(length(ReadsSubset)>0){
+	  sortedReadslist = split(ReadsSubset, MethPattern) #paste(names(TFBS), MethPattern, sep='_'))
+	}else{
+	  sortedReadslist = list()
+	  }
+	return(sortedReadslist)
+}
+```
+
+```{r}
+SortedReads <- lapply(Methylation[[2]], 
+                      SortReadsPromoter, 
+                      BinsCoordinates = BinsCoordinates, 
+                      coverage = 20, 
+                      strand = strand)
+
+# How many reads in each pattern?
+# DMSO
+lapply(SortedReads$DMSO_DE_S2, length) %>% 
+  unlist() %>% 
+  print()
+
+# TRP
+lapply(SortedReads$TRP_DE_S2, length) %>% 
+  unlist() %>% 
+  print()
+
+```
+
+Now, it's time to assign promoter states to bin patterns. Here, we need a bit of prior biological knowledge.
+For simplicity, we can follow what has been designed in `./analysis/example_3/State_definitions.png`.
+Again: 
+  * polII - only Pol II bound at the promoter
+  * PIC.polII - PIC and Pol II bound at the promoter
+  * unbound - The promoter is accessible.
+  * nucleosome - The promoter is occupied by nucleosome.
+  * unassigned - We are not sure what this could mean.
+
+```{r}
+promoter_states <- list(unassigned = c("0101", "0110", "1010"),
+                        nucleosome = c("0000", "0001", "0010", "0011", "0100", "1000", "1100"),
+                        unbound = c("0111", "1110", "1111"),
+                        PIC = c("1011"),
+                        PIC.polII = c("1001"),
+                        polII = c("1101"))
+
+print(promoter_states)
+```
+
+#### Question 3: 
+Quantify promoter state frequencies and describe what you see.
+
+Answer (code):
+```{r}
+```
+
+Answer (description):
+
+
+
+## Can we work on multiple promoters simultaneously?
+Let's go back to the `CallContextMethylation` step. Instead of working on one promoter, we can write a function to work iteratively on multiple promoters.
+```{r}
+# Create a methylation calling windows across all 36 promoters
+gr <- resize(TSSs, 500, fix = "center")
+print(gr)
+
+
+# this would take some time to run.
+SortedReads <- lapply(seq_along(gr), function(i) {
+  CurrentWindow <- gr[i]
+  print(paste0("Working on: promoter ", i))
+  ExperimentType <- suppressMessages(SingleMoleculeFootprinting::DetectExperimentType(Samples = MySample))
+  Methylation <- CallContextMethylation(sampleFile = Qinput,
+                                        samples = MySample,
+                                        genome = genome,
+                                        RegionOfInterest = CurrentWindow,
+                                        coverage = 20, 
+                                        ConvRate.thr = NULL,
+                                        returnSM = TRUE)
+  BinsCoordinates <- MakePromoterBins(RegionsOfInterest = TSSs[i], StrandAware = TRUE)
+  strand <- unique(as.character(strand(BinsCoordinates)))
+  SortedReads_window <- list(lapply(Methylation[[2]], 
+                                    SortReadsPromoter, 
+                                    BinsCoordinates = BinsCoordinates, 
+                                    coverage = 20, 
+                                    strand = strand))
+  
+  names(SortedReads_window) <- names(TSSs[i])
+  
+  return(SortedReads_window)
+  })
+
+SortedReads <- unlist(SortedReads, recursive = FALSE)
+```
+
+#### Question 4: 
+Calculate promoter state frequencies for all promoters. Make a boxplot showing Pol II binding frequency comparing between DMSO and TRP treatments.
+
+Answer (code):
+```{r}
+```
+
+
+#### Question 5: Genome-wide quantification of promoter states
+In addition to selected promoters in amplicon data we just worked on, we can use SMF to quantify promoter states across the genome. Here, I reanalysed genome-wide data from S2 _Drosophila_ cells (Krebs _et al._, _Mol. Cell_, 2017). I stored promoter state frequency in an rds object. 
+I further analysed Pol II ChIP-seq, PRO-seq, DNase-seq, and MNase-seq from publicly available data sets (What does each of this method measure?). Do we see the relationship between these data modalities and promoter state frequencies derived from SMF?
+
+In the below chunk of code, we load all these data types together with genome-wide promoter state frequencies obtained from SMF.
+Please continue the analysis (I will let you explore this freely :) ) and explain what do you observe?
+```{r}
+# Load different data sets
+SMF_state_freq <- readRDS("./data/dataset_3_S2_amplicon_TRP/DM_S2_DE_promoter_states_freq_matrix_genome_wide.rds")
+ChIP_seq <- readRDS("./data/dataset_3_S2_amplicon_TRP/S2_PolII_ChIP_seq.rds")
+PRO_seq <- readRDS("./data/dataset_3_S2_amplicon_TRP/S2_PRO_seq.rds")
+MNase_seq <- readRDS("./data/dataset_3_S2_amplicon_TRP/S2_MNase.rds")
+DNase_seq <- readRDS("./data/dataset_3_S2_amplicon_TRP/S2_DNase.rds")
+```
+
+Answer (code):
+```{r}
+```
+
+Answer (description):
+

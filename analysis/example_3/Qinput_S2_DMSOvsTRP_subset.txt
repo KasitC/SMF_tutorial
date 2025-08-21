@@ -1,0 +1,5 @@
+FileName	SampleName
+DMSO_DE_S2_subset_R1.bam	DMSO_DE_S2
+DMSO_DE_S2_subset_R2.bam	DMSO_DE_S2
+TRP_DE_S2_subset_R1.bam	TRP_DE_S2
+TRP_DE_S2_subset_R2.bam	TRP_DE_S2

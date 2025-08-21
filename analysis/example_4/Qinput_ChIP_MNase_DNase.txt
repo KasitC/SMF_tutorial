@@ -1,0 +1,4 @@
+FileName    SampleName
+/g/krebs/DWH/public/MusMusculus/sequencing/ChIP-seq/mESC/REST/NT/PMID_22964890/bam/REST_mESC_NT_SRX041299.bam   REST_ChIP
+/g/krebs/DWH/public/MusMusculus/sequencing/MNase-seq/mESC/129S6-SvEvTac_WT/Mnase_30996347/bam/Mnase_mESC_WT_Rep2_SRX3827079.bam MNase
+/g/krebs/krebs/HTS/ChIP-seq/MM/aln/SRR1973530_71ac45d8de4f.bam  DNase

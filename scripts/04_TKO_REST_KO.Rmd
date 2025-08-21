@@ -47,6 +47,7 @@ First, we will load the GRanges object containing the binding sites for REST.
 ```{r}
 REST_TFBS <- readRDS("./data/dataset_4_TF_cooccupancy/REST_TFBSs.rds")
 head(REST_TFBS)
+REST_TFBS %>% length()
 ```
 
 Next, we will load also the GRanges object containing the amplicon locations we will be working with.
@@ -115,9 +116,9 @@ Methylation
 # locate REST binding sites
 TFBS <- REST_TFBS[REST_TFBS$absolute.idx == gr$TargetSite]
 
-PlotAvgSMF(MethGR = Methylation[[1]],
-           RegionOfInterest = gr,
-           TFBSs = TFBS)
+Avg_plot <- PlotAvgSMF(MethGR = Methylation[[1]],
+                       RegionOfInterest = gr,
+                       TFBSs = TFBS)
 ```
 
 
@@ -165,14 +166,21 @@ Hint: use the `StateQuantification` function with the `TF_states` we just define
 
 ### Make single-molecule plot
 ```{r}
-PlotSM(MethSM = Methylation[[2]], RegionOfInterest = gr, sorting.strategy = "classical", SortedReads = SortedReads)
+SM_plot <- PlotSM(MethSM = Methylation[[2]], RegionOfInterest = gr, sorting.strategy = "classical", SortedReads = SortedReads)
 
-StateQuantificationPlot(SortedReads = SortedReads, states = SingleTFStates())
+StateQuan_plot <- StateQuantificationPlot(SortedReads = SortedReads, states = SingleTFStates())
 
 ```
 
 Find the way to align these plots side-by-side?
-```{r}
+```{r, fig.height=6, fig.width=6}
+layout <- "
+  #A
+  CB
+"
+Avg_plot + SM_plot + StateQuan_plot +
+  patchwork::plot_layout(ncol = 2, design = layout, widths = c(0.05, 1), heights = c(1, 0.8), guides = "collect") -> FinalPlot
+FinalPlot
 ```
 
 
@@ -241,6 +249,19 @@ SortedReads <- SortReadsBySingleTF(MethSM = MethSM, TFBS = TFBS, coverage = 20)
 
 # How many reads in each pattern?
 lapply(SortedReads[[1]], length) %>% unlist() %>% print()
+```
+
+```{r}
+MethSM_KO <- list(REST_KO = Methylation[[2]][[1]]$DGCHN)
+SortedReads_KO <- SortReadsBySingleTF(MethSM = MethSM_KO, TFBS = TFBS, coverage = 20)
+
+SM_plot <- PlotSM(MethSM = MethSM_KO,
+                  RegionOfInterest = gr,
+                  sorting.strategy = "classical",
+                  SortedReads = SortedReads_KO)
+
+
+
 ```
 
 
@@ -380,3 +401,23 @@ Can you finish the plot?
 ```{r}
 
 ```
+
+
+## Bonus: Integrative analysis with other orthogonal assays
+```{r}
+source("/g/krebs/barzaghi/Rscripts/CrappyUtils.R")
+source('/g/krebs/barzaghi/Rscripts/useful_functionsV1.r')
+TFBS <- Load.TFBSs()
+unique(TFBS$TF)
+TFBS_ChipOK <- TFBS %>% filter(isBound == "TRUE")
+REST <- TFBS_ChipOK %>% filter(TF == "REST")
+```
+
+
+```{r}
+REST_extend <- resize(REST, 200, fix = "center")
+
+
+
+```
+
