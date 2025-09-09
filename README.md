@@ -4,7 +4,7 @@ The examples include some basic QCs of methylation footprinting, plottings, and 
 
 
 # Installation
-This tutorial requires several functions from _SingleMoleculeFootprinting_ R package (promoter branch).
+This tutorial requires several functions from _SingleMoleculeFootprinting_ R package.
 To install _SingleMoleculeFootprinting_, please follow [this link](https://www.bioconductor.org/packages/release/bioc/html/SingleMoleculeFootprinting.html).
 
 In addition, please also make sure that the following packages have already been installed. <br />
